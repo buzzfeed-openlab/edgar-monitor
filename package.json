@@ -1,0 +1,25 @@
+
+{
+  "name": "edgar-watcher",
+  "version": "0.0.1",
+  "author": {
+    "name": "Westley Argentum Hennigh-Palermo"
+  },
+  "dependencies": {
+    "request": "2.65.x",
+    "aws-sdk": "2.2.x",
+    "diff2html": "1.1.x",
+    "pg": "4.4.x"
+  },
+  "engines": {
+    "node": ">=0.8.0"
+  },
+  "main": "./run.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/buzzfeed-openlab/edgar-watcher"
+  },
+  "bugs": {
+    "url": "https://github.com/buzzfeed-openlab/edgar-watcher/issues"
+  }
+}
