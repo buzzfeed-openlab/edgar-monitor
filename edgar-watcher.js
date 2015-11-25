@@ -118,11 +118,8 @@ function findOlderVersionOfEntry(entry, feed, cb) {
                     rowDate = new Date(row.date),
                     rowLink = normalizeLink(row.link);
 
-                console.log(rowDate < entryDate);
                 if (rowTitleType == entryType && rowDate < entryDate && rowLink != entryLink) {
                     // found the most recent previous filing of the same type
-                    console.log('old:', entry.link);
-                    console.log('new:', row.link);
                     cb(row);
                     break;
                 }
