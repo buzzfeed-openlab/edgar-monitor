@@ -6,21 +6,40 @@ var request = require('request'),
     pg = require('pg'),
     cheerio = require('cheerio');
 
+function handleError(err) {
+    if (err) {
+        console.log('Error:');
+        console.log(err);
+        return true;
+    }
+
+    return false;
+}
+
 var EdgarWatcher = module.exports = function(emitter, config) {
     emitter.on('new-entry', function(entry, feed) {
         if (typeFromTitle(entry.title) != "S-1") {
             return;
         }
 
-        findOlderVersionOfEntry(entry, feed, config.databaseUrl, function(oldEntry) {
+        findOlderVersionOfEntry(entry, feed, config.databaseUrl, function(err, oldEntry) {
+            if (handleError(err)) {
+                // send notification anyway?
+                return;
+            }
 
-            getDocLinkFromEntry(entry, function(newLink) {
-                getDocLinkFromEntry(oldEntry, function(oldLink) {
+            getDocLinkFromEntry(entry, function(err, newLink) {
+                if (handleError(err)) { return; }
+
+                getDocLinkFromEntry(oldEntry, function(err, oldLink) {
+                    if (handleError(err)) { return; }
 
                     var entryDoc = typeFromTitle(entry.title) + '-' + Date.parse(entry.date),
                         oldEntryDoc = typeFromTitle(oldEntry.title) + '-' + Date.parse(oldEntry.date);
 
-                    diffDocs(oldLink, oldEntryDoc, newLink, entryDoc, function(diff) {
+                    diffDocs(oldLink, oldEntryDoc, newLink, entryDoc, function(err, diff) {
+                        if (handleError(err)) { return; }
+
                         var body = Diff2Html.getPrettyHtml(diff, { inputFormat: 'diff' }),
                             html = buildDiffHtml(body);
 
@@ -34,15 +53,7 @@ var EdgarWatcher = module.exports = function(emitter, config) {
     });
 }
 
-function handleError(err) {
-    if (err) {
-        console.log('Error:');
-        console.log(err);
-        return true;
-    }
 
-    return false;
-}
 
 function multiGet(urls, cb) {
     var results = {},
@@ -65,19 +76,21 @@ function multiGet(urls, cb) {
 
 function diffDocs(url1, title1, url2, title2, cb) {
     exec('w3m -dump -cols 200 ' + url1 + ' > "' + title1 + '"', function(err) {
-        if (handleError(err)) { return; }
+        if (err) { return cb(err); }
 
         exec('w3m -dump -cols 200 ' + url2 + ' > "' + title2 + '"', function(err) {
-            if (handleError(err)) { return; }
+            if (err) { return cb(err); }
 
             var oneGigInBytes = 1073741824;
             exec('git diff --ignore-all-space --no-index "' + title1 + '" "' + title2 + '"',
                 { maxBuffer: oneGigInBytes - 1 }, function(err, stdout) {
-                    if (err && err.code != 1) {
-                        return handleError(err);
-                    }
 
-                cb(stdout);
+                // git diff returns 1 when it found a difference
+                if (err && err.code != 1) {
+                    err = null;
+                }
+
+                cb(err, stdout);
             });
         });
     });
@@ -131,11 +144,17 @@ function findOlderVersionOfEntry(entry, feed, databaseUrl, cb) {
         entryLink = normalizeLink(entry.link);
 
     pg.connect(databaseUrl, function(err, client, done) {
-        if (handleError(err)) { return done(client); }
+        if (err) {
+            cb(err);
+            return done(client);
+        }
 
         // slect all the entries because we don't have a way to filter on filing type
         client.query('SELECT * from entries WHERE feed = $1 ORDER BY date DESC', [feed], function(err, result) {
-            if (handleError(err)) { return done(client); }
+            if (err) {
+                cb(err);
+                return done(client);
+            }
 
             for (var i = 0; i < result.rows.length; ++i) {
                 var row = result.rows[i],
@@ -145,7 +164,7 @@ function findOlderVersionOfEntry(entry, feed, databaseUrl, cb) {
 
                 if (rowType == entryType && rowDate < entryDate && rowLink != entryLink) {
                     // found the most recent previous filing of the same type
-                    cb(row);
+                    cb(null, row);
                     break;
                 }
             }
@@ -157,6 +176,8 @@ function findOlderVersionOfEntry(entry, feed, databaseUrl, cb) {
 
 function getDocLinkFromEntry(entry, cb) {
     request(entry.link, function(err, response, body) {
+        if (err) { cb(err); }
+
         var entryType = typeFromTitle(entry.title),
             $ = cheerio.load(body);
 
@@ -168,6 +189,6 @@ function getDocLinkFromEntry(entry, cb) {
         var edgarSite = 'https://www.sec.gov',
             docLink = edgarSite + $(docRow.children()[2]).find('a').attr('href');
 
-        cb(docLink);
+        cb(null, docLink);
     });
 }
