@@ -164,8 +164,8 @@ function buildDiffHtml(body) {
      
             '<link rel="stylesheet" href="./s1-static/github.min.css">' +
      
-            '<link rel="stylesheet" type="text/css" href="./s1-static/diff2html.min.css">' +
-            '<script type="text/javascript" src="./s1-static/diff2html.min.js"></script>' +
+            '<link rel="stylesheet" type="text/css" href="./diff-static/diff2html.min.css">' +
+            '<script type="text/javascript" src="./diff-static/diff2html.min.js"></script>' +
      
         '</head>' +
         '<body style="text-align: center; font-family: \'Source Sans Pro\',sans-serif;">' +
