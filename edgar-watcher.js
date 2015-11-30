@@ -147,6 +147,9 @@ function diffDocs(url1, url2, cb) {
                     err = null;
                 }
 
+                fs.unlinkSync(doc1);
+                fs.unlinkSync(doc2);
+
                 cb(err, stdout);
             });
         });
