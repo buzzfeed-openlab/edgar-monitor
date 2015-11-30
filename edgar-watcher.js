@@ -4,7 +4,22 @@ var request = require('request'),
     exec = require('child_process').exec,
     Diff2Html = require('diff2html').Diff2Html,
     pg = require('pg'),
-    cheerio = require('cheerio');
+    cheerio = require('cheerio'),
+    uuid = require('node-uuid'),
+    aws = require('aws-sdk'),
+    ses = new aws.SES({ apiVersion: '2010-12-01', 'region': 'us-east-1' });
+
+var diffAndNotify = ['S-1'],
+    notify = [
+        // 'CT ORDER',
+        // 'S-8',
+        // 'EFFECT',
+        // 'CERTNYS',
+        // 'FWP',
+        // '8-A12B',
+        // 'DRS',
+        // 'D'
+    ];
 
 function handleError(err) {
     if (err) {
@@ -18,42 +33,81 @@ function handleError(err) {
 
 var EdgarWatcher = module.exports = function(emitter, config) {
     emitter.on('new-entry', function(entry, feed) {
-        if (typeFromTitle(entry.title) != "S-1") {
-            return;
-        }
+        var entryType = typeFromTitle(entry.title);
 
-        findOlderVersionOfEntry(entry, feed, config.databaseUrl, function(err, oldEntry) {
-            if (handleError(err)) {
-                // send notification anyway?
-                return;
-            }
-
-            getDocLinkFromEntry(entry, function(err, newLink) {
-                if (handleError(err)) { return; }
-
-                getDocLinkFromEntry(oldEntry, function(err, oldLink) {
-                    if (handleError(err)) { return; }
-
-                    var entryDoc = typeFromTitle(entry.title) + '-' + Date.parse(entry.date),
-                        oldEntryDoc = typeFromTitle(oldEntry.title) + '-' + Date.parse(oldEntry.date);
-
-                    diffDocs(oldLink, oldEntryDoc, newLink, entryDoc, function(err, diff) {
-                        if (handleError(err)) { return; }
-
-                        var body = Diff2Html.getPrettyHtml(diff, { inputFormat: 'diff' }),
-                            html = buildDiffHtml(body);
-
-                        fs.writeFileSync(entry.guid + '.html', html);
-                    });
-
-                });
+        if (diffAndNotify.indexOf(entryType) != -1) {
+            diffEntry(entry, feed, config, function(err, diffLink) {
+                handleError(err);
+                notifyEntry(entry, feed, config, diffLink);
             });
-
-        });
+        } else if (notify.indexOf(entryType) != -1) {
+            notifyEntry(entry, feed, config);
+        }
     });
 }
 
+function notifyEntry(entry, feed, config, extraResource) {
+    var bodyText = entry.toString();
+    if (extraResource) {
+        bodyText += '\n\n' + extraResource;
+    }
 
+    var email = {
+        Source: config.emailSource,
+
+        Destination: {
+            BccAddresses: config.emails
+        },
+
+        Message: {
+            Subject: {
+                Data: 'New Entry: ' + entry.title
+            },
+            Body: {
+                Text: {
+                    Data: bodyText
+                }
+            }
+        }
+    }
+
+    ses.sendEmail(email, function(err, data) {
+        if (err) { return console.log(err, err.stack); }
+        console.log(data);
+    });
+}
+
+function diffEntry(entry, feed, config, cb) {
+    var entryType = typeFromTitle(entry.title);
+
+    findOlderVersionOfEntry(entry, feed, config.databaseUrl, function(err, oldEntry) {
+        if (err) { return cb(err); }
+
+        if (!oldEntry) { return cb(null, null); }
+
+        getDocLinkFromEntry(entry, function(err, newLink) {
+            if (err) { cb(err); }
+
+            getDocLinkFromEntry(oldEntry, function(err, oldLink) {
+                if (err) { cb(err); }
+
+                diffDocs(oldLink, newLink, function(err, diff) {
+                    if (err) { cb(err); }
+
+                    var body = Diff2Html.getPrettyHtml(diff, { inputFormat: 'diff' }),
+                        html = buildDiffHtml(body);
+
+                    fs.writeFileSync(entry.guid + '.html', html);
+
+                    cb(null, 'wouldBeLinkToDiff.html');
+                });
+
+            });
+        });
+
+    });
+
+}
 
 function multiGet(urls, cb) {
     var results = {},
@@ -72,21 +126,24 @@ function multiGet(urls, cb) {
     for (var i = 0; i < urls.length; ++i) {
         request(urls[i], handler);
     }
-};
+}
 
-function diffDocs(url1, title1, url2, title2, cb) {
-    exec('w3m -dump -cols 200 ' + url1 + ' > "' + title1 + '"', function(err) {
+function diffDocs(url1, url2, cb) {
+    var doc1 = uuid.v4(),
+        doc2 = uuid.v4();
+
+    exec('w3m -dump -cols 200 ' + url1 + ' > "' + doc1 + '"', function(err) {
         if (err) { return cb(err); }
 
-        exec('w3m -dump -cols 200 ' + url2 + ' > "' + title2 + '"', function(err) {
+        exec('w3m -dump -cols 200 ' + url2 + ' > "' + doc2 + '"', function(err) {
             if (err) { return cb(err); }
 
             var oneGigInBytes = 1073741824;
-            exec('git diff --ignore-all-space --no-index "' + title1 + '" "' + title2 + '"',
+            exec('git diff --ignore-all-space --no-index "' + doc1 + '" "' + doc2 + '"',
                 { maxBuffer: oneGigInBytes - 1 }, function(err, stdout) {
 
                 // git diff returns 1 when it found a difference
-                if (err && err.code != 1) {
+                if (err && err.code == 1) {
                     err = null;
                 }
 
@@ -156,6 +213,7 @@ function findOlderVersionOfEntry(entry, feed, databaseUrl, cb) {
                 return done(client);
             }
 
+            var foundEntry = false;
             for (var i = 0; i < result.rows.length; ++i) {
                 var row = result.rows[i],
                     rowType = typeFromTitle(row.title),
@@ -163,10 +221,14 @@ function findOlderVersionOfEntry(entry, feed, databaseUrl, cb) {
                     rowLink = normalizeLink(row.link);
 
                 if (rowType == entryType && rowDate < entryDate && rowLink != entryLink) {
-                    // found the most recent previous filing of the same type
+                    foundEntry = true;
                     cb(null, row);
                     break;
                 }
+            }
+
+            if (!foundEntry) {
+                cb(null, null);
             }
 
             done();
