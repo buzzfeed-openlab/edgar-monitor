@@ -10,7 +10,8 @@
     "aws-sdk": "2.2.x",
     "diff2html": "1.1.x",
     "pg": "4.4.x",
-    "cheerio": "0.19.x"
+    "cheerio": "0.19.x",
+    "node-uuid": "1.4.x"
   },
   "engines": {
     "node": ">=0.8.0"
