@@ -7,6 +7,7 @@ var request = require('request'),
     cheerio = require('cheerio'),
     uuid = require('node-uuid'),
     aws = require('aws-sdk'),
+    s3 = new aws.S3({ apiVersion: '2006-03-01', 'region': 'us-east-1' }),
     ses = new aws.SES({ apiVersion: '2010-12-01', 'region': 'us-east-1' });
 
 var diffAndNotify = ['S-1'],
@@ -72,8 +73,7 @@ function notifyEntry(entry, feed, config, extraResource) {
     }
 
     ses.sendEmail(email, function(err, data) {
-        if (err) { return console.log(err, err.stack); }
-        console.log(data);
+        handleError(err);
     });
 }
 
@@ -86,20 +86,29 @@ function diffEntry(entry, feed, config, cb) {
         if (!oldEntry) { return cb(null, null); }
 
         getDocLinkFromEntry(entry, function(err, newLink) {
-            if (err) { cb(err); }
+            if (err) { return cb(err); }
 
             getDocLinkFromEntry(oldEntry, function(err, oldLink) {
-                if (err) { cb(err); }
+                if (err) { return cb(err); }
 
                 diffDocs(oldLink, newLink, function(err, diff) {
-                    if (err) { cb(err); }
+                    if (err) { return cb(err); }
 
                     var body = Diff2Html.getPrettyHtml(diff, { inputFormat: 'diff' }),
-                        html = buildDiffHtml(body);
+                        html = buildDiffHtml(body),
+                        filename = entry.guid + '.html';
 
-                    fs.writeFileSync(entry.guid + '.html', html);
+                    fs.writeFileSync(filename, html);
+                    uploadFileToS3('edgar-diffs', filename, html, { ACL: 'public-read', ContentType: 'text/html' }, function(err, link) {
+                        if (err) { return cb(err); }
 
-                    cb(null, 'wouldBeLinkToDiff.html');
+                        var secondsInAWeek = 604800;
+                        var params = { Bucket: 'edgar-diffs', Key: filename, Expires: secondsInAWeek };
+                        s3.getSignedUrl('getObject', params, function(err, url) {
+                            cb(err, url);
+                        });
+                    });
+
                 });
 
             });
@@ -162,7 +171,7 @@ function buildDiffHtml(body) {
         '<head>' +
             '<meta charset="utf-8">' +
      
-            '<link rel="stylesheet" href="./s1-static/github.min.css">' +
+            '<link rel="stylesheet" href="./diff-static/github.min.css">' +
      
             '<link rel="stylesheet" type="text/css" href="./diff-static/diff2html.min.css">' +
             '<script type="text/javascript" src="./diff-static/diff2html.min.js"></script>' +
@@ -256,4 +265,29 @@ function getDocLinkFromEntry(entry, cb) {
 
         cb(null, docLink);
     });
+}
+
+function extend(obj, extensions) {
+    if (extensions && typeof extensions === 'object') {
+        var keys = Object.keys(extensions);
+
+        for (var i = 0; i < keys.length; ++i) {
+            obj[keys[i]] = extensions[keys[i]];
+        }
+    }
+
+    return obj;
+}
+
+function uploadFileToS3(bucket, filename, body, options, cb) {
+    var fileUpload = {
+        Bucket: bucket,
+        Key: filename,
+        ACL: 'private',
+        Body: body,
+    };
+
+    extend(fileUpload, options);
+
+    s3.putObject(fileUpload, cb);
 }
