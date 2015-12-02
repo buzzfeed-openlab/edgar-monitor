@@ -10,18 +10,6 @@ var request = require('request'),
     s3 = new aws.S3({ apiVersion: '2006-03-01', 'region': 'us-east-1' }),
     ses = new aws.SES({ apiVersion: '2010-12-01', 'region': 'us-east-1' });
 
-var diffAndNotify = ['S-1'],
-    notify = [
-        // 'CT ORDER',
-        // 'S-8',
-        // 'EFFECT',
-        // 'CERTNYS',
-        // 'FWP',
-        // '8-A12B',
-        // 'DRS',
-        // 'D'
-    ];
-
 function handleError(err) {
     if (err) {
         console.log('Error:');
@@ -36,43 +24,33 @@ var EdgarWatcher = module.exports = function(emitter, config) {
     emitter.on('new-entry', function(entry, feed) {
         var entryType = typeFromTitle(entry.title);
 
-        if (diffAndNotify.indexOf(entryType) != -1) {
+        if (config.diffAndNotifyAboutFilingTypes.indexOf(entryType) != -1) {
             diffEntry(entry, feed, config, function(err, diffLink) {
                 handleError(err);
                 notifyEntry(entry, feed, config, diffLink);
             });
-        } else if (notify.indexOf(entryType) != -1) {
+        } else if (config.notifyAboutFilingTypes.indexOf(entryType) != -1) {
             notifyEntry(entry, feed, config);
         }
     });
 }
 
 function notifyEntry(entry, feed, config, extraResource) {
-    var bodyText = entry.toString();
+    var subject = entry.meta.title + ': ' + entry.title;
+
+    var bodyText = entry.meta.title + '\n\n' +
+        entry.title + '\n\n' +
+        entry.date + '\n\n' +
+        'Link to filing: ' + entry.link + '\n\n';
+
     if (extraResource) {
-        bodyText += '\n\n' + extraResource;
+        bodyText += 'Link to diff: ' + extraResource + '\n\n';
     }
 
-    var email = {
-        Source: config.emailSource,
+    bodyText += entry.guid + '\n' +
+        entry.categories;
 
-        Destination: {
-            BccAddresses: config.emails
-        },
-
-        Message: {
-            Subject: {
-                Data: 'New Entry: ' + entry.title
-            },
-            Body: {
-                Text: {
-                    Data: bodyText
-                }
-            }
-        }
-    }
-
-    ses.sendEmail(email, function(err, data) {
+    sendEmail(config.emailSource, config.emails, subject, bodyText, {}, function(err) {
         handleError(err);
     });
 }
@@ -290,4 +268,29 @@ function uploadFileToS3(bucket, filename, body, options, cb) {
     extend(fileUpload, options);
 
     s3.putObject(fileUpload, cb);
+}
+
+function sendEmail(from, to, subject, body, options, cb) {
+    var email = {
+        Source: from,
+
+        Destination: {
+            BccAddresses: to
+        },
+
+        Message: {
+            Subject: {
+                Data: subject
+            },
+            Body: {
+                Text: {
+                    Data: body
+                }
+            }
+        }
+    }
+
+    extend(email, options);
+
+    ses.sendEmail(email, cb);
 }
