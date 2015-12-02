@@ -14,6 +14,7 @@ function handleError(err) {
     if (err) {
         console.log('Error:');
         console.log(err);
+        console.log('-------');
         return true;
     }
 
