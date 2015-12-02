@@ -276,7 +276,7 @@ function sendEmail(from, to, subject, body, options, cb) {
         Source: from,
 
         Destination: {
-            BccAddresses: to
+            ToAddresses: to
         },
 
         Message: {
