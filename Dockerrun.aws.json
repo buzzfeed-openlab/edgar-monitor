@@ -1,0 +1,6 @@
+{
+  "AWSEBDockerrunVersion": "1",
+  "Volumes": [
+  ],
+  "Logging": "/var/eb_log"
+}
