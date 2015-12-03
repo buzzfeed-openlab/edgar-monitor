@@ -17,7 +17,5 @@ COPY . /opt/edgar-watcher
 RUN cd /opt/edgar-watcher; npm install
 RUN cd /opt/puppy; npm install
 
-EXPOSE 8080
-
 # run
 CMD ["node", "/opt/puppy/run.js", "/opt/edgar-watcher/config.json"]
