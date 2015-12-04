@@ -1,6 +1,6 @@
 
 {
-  "name": "edgar-watcher",
+  "name": "edgar-monitor",
   "version": "0.0.1",
   "author": {
     "name": "Westley Argentum Hennigh-Palermo"
@@ -19,9 +19,9 @@
   "main": "./run.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/buzzfeed-openlab/edgar-watcher"
+    "url": "https://github.com/buzzfeed-openlab/edgar-monitor"
   },
   "bugs": {
-    "url": "https://github.com/buzzfeed-openlab/edgar-watcher/issues"
+    "url": "https://github.com/buzzfeed-openlab/edgar-monitor/issues"
   }
 }

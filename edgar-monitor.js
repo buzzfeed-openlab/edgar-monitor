@@ -15,13 +15,11 @@ function handleError(err) {
         console.log('Error:');
         console.log(err);
         console.log('-------');
-        return true;
+        process.exit(1);
     }
-
-    return false;
 }
 
-var EdgarWatcher = module.exports = function(emitter, config) {
+var EdgarMonitor = module.exports = function(emitter, config) {
     emitter.on('new-entry', function(entry, feed) {
         var entryType = typeFromTitle(entry.title);
 
