@@ -20,6 +20,10 @@ function handleError(err) {
 }
 
 var EdgarMonitor = module.exports = function(emitter, config) {
+    if (config.maxDatabaseConnections) {
+        pg.defaults.poolSize = config.maxDatabaseConnections;
+    }
+
     emitter.on('new-entry', function(entry, feed) {
         var entryType = typeFromTitle(entry.title);
 
