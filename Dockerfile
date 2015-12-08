@@ -17,5 +17,7 @@ COPY . /opt/edgar-monitor
 RUN cd /opt/edgar-monitor; npm install
 RUN cd /opt/rss-puppy; npm install
 
+EXPOSE 7654
+
 # run
 CMD ["node", "/opt/rss-puppy/run.js", "/opt/edgar-monitor/config.json"]
