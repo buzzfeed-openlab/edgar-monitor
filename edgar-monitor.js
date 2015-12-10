@@ -12,9 +12,11 @@ var request = require('request'),
 
 function handleError(err) {
     if (err) {
-        console.log('Error:');
+        var timeStamp = (new Date()).toString();
+        console.log(timeStamp, ' Error:');
         console.log(err);
         console.log('-------');
+
         process.exit(1);
     }
 }
