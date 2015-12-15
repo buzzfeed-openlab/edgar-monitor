@@ -53,7 +53,8 @@ function notifyEntry(entry, feed, config, extraResource) {
     }
 
     bodyText += entry.guid + '\n' +
-        entry.categories;
+        entry.categories + '\n\n' +
+        'BuzzFeed Open Lab project -- Beta release, please report errors or unexpected behavior to WestleyArgentum@gmail.com';
 
     sendEmail(config.emailSource, config.emails, subject, bodyText, {}, function(err) {
         handleError(err);
