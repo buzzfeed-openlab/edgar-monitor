@@ -54,7 +54,7 @@ function notifyEntry(entry, feed, config, extraResource) {
 
     bodyText += entry.guid + '\n' +
         entry.categories + '\n\n' +
-        'BuzzFeed Open Lab project -- Beta release, please report errors or unexpected behavior to WestleyArgentum@gmail.com';
+        'BuzzFeed Open Lab project: this is a Beta release. We think it is pretty cool, but you shouldn\'t depend on it just yet!\nPlease report any errors or unexpected behavior to #openlab-dev or openlab@buzzfeed.com, not to BuzzFeed dev or helpdesk. Thanks!';
 
     sendEmail(config.emailSource, config.emails, subject, bodyText, {}, function(err) {
         handleError(err);
